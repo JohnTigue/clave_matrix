@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Blues Clock</title>
+<style>
+/* Single source of truth: --pos = position in the 12-bar form, measured in bars (0 → 12).
+   JS writes only --pos; every hand, wedge and ring is derived from it in CSS. */
+@property --pos { syntax: "<number>"; inherits: true; initial-value: 0; }
+
+:root {
+  color-scheme: light dark;
+  --bg:     light-dark(oklch(96% 0.012 80), oklch(17% 0.01 340));
+  --face:   light-dark(oklch(99% 0.006 80), oklch(22% 0.012 340));
+  --ink:    light-dark(oklch(22% 0.02 340), oklch(93% 0.01 80));
+  --muted:  color-mix(in oklch, var(--ink) 45%, transparent);
+  --accent: oklch(55% 0.2 25);
+  --tint:   color-mix(in oklch, var(--accent) 16%, transparent);
+  font-family: system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem 1rem;
+}
+
+header {
+  text-align: center;
+  & h1 { margin: 0; font-size: 1.6rem; letter-spacing: .02em; }
+  & p  { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; text-wrap: balance; }
+}
+
+/* ---------- clock ---------- */
+.clock {
+  container-type: inline-size;
+  width: min(calc(100vw - 2rem), 32rem, 62dvh);
+  aspect-ratio: 1;
+  position: relative;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--face);
+  border: 1.6cqi solid var(--ink);
+  box-shadow: 0 2cqi 6cqi oklch(0% 0 0 / .3);
+
+  /* current bar = tinted wedge */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(
+      from calc(round(down, var(--pos), 1) * 30deg),
+      var(--tint) 0 30deg, transparent 0);
+  }
+}
+
+/* progress through the current bar */
+.progress {
+  position: absolute;
+  inset: .6cqi;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(mod(var(--pos), 1) * 1turn), transparent 0);
+  mask: radial-gradient(closest-side, transparent calc(100% - 1.4cqi), #000 calc(100% - 1.3cqi));
+}
+
+/* tick marks: long at beats (12/3/6/9), short at every triplet */
+.ticks {
+  position: absolute;
+  inset: 2.6cqi;
+  border-radius: 50%;
+  &::before, &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+  }
+  &::before {
+    background: repeating-conic-gradient(from -1.6deg, var(--ink) 0 3.2deg, transparent 0 90deg);
+    mask: radial-gradient(closest-side, transparent calc(100% - 5cqi), #000 calc(100% - 4.9cqi));
+  }
+  &::after {
+    background: repeating-conic-gradient(from -.6deg, var(--muted) 0 1.2deg, transparent 0 30deg);
+    mask: radial-gradient(closest-side, transparent calc(100% - 2.6cqi), #000 calc(100% - 2.5cqi));
+  }
+}
+
+/* numerals and chord labels placed with CSS trig */
+.ring {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  & li {
+    --a: calc(var(--i) * 30deg);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate:
+      calc(-50% + sin(var(--a)) * var(--r))
+      calc(-50% - cos(var(--a)) * var(--r));
+    line-height: 1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    transition: color .25s, scale .25s;
+  }
+}
+
+.numerals {
+  --r: 34cqi;
+  & li { font-size: 6cqi; font-weight: 500; color: var(--muted); }
+  & .beat { font-size: 8cqi; font-weight: 800; color: var(--ink); }
+  & li.on { color: var(--accent); scale: 1.3; transition: none; }
+}
+
+.chords {
+  --r: 22.5cqi;
+  & li { font-size: 4cqi; color: var(--muted); display: grid; gap: .5cqi; }
+  & b { font-weight: 700; color: var(--ink); }
+  & small { font-size: 2.8cqi; }
+  & li.on, & li.on b { color: var(--accent); }
+}
+
+/* feel → dim the triplets that are silent */
+body:has(#feel option[value="shuffle"]:checked) .numerals .mid,
+body:has(#feel option[value="beats"]:checked)   .numerals :is(.mid, .last) { opacity: .25; }
+
+/* hands */
+.hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+  border-radius: 2cqi 2cqi .5cqi .5cqi;
+}
+.hour   { width: 3.4cqi; height: 15cqi; background: var(--ink);    rotate: calc(var(--pos) * 30deg); }
+.minute { width: 1.6cqi; height: 41cqi; background: var(--accent); rotate: calc(var(--pos) * 1turn); }
+.hub {
+  position: absolute;
+  inset: calc(50% - 2.6cqi);
+  border-radius: 50%;
+  background: var(--ink);
+  border: .9cqi solid var(--accent);
+}
+
+/* stopped → hands rewind to the top of the form (animating a registered custom property) */
+body:not(:has(#play[aria-pressed="true"])) .clock {
+  transition: --pos 1.4s cubic-bezier(.3, .9, .2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  body .clock { transition: none !important; }
+}
+
+/* ---------- readout + controls ---------- */
+#readout {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  min-height: 1.4em;
+  color: var(--muted);
+  & b { color: var(--ink); }
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.25rem;
+  justify-content: center;
+  align-items: center;
+  max-width: 38rem;
+
+  & label { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
+  & input[type="range"] { accent-color: var(--accent); width: 9rem; }
+  & input[type="checkbox"] { accent-color: var(--accent); }
+  & select {
+    font: inherit;
+    padding: .25rem .4rem;
+    border-radius: .4rem;
+    border: 1px solid var(--muted);
+    background: var(--face);
+    color: var(--ink);
+  }
+  & output { font-variant-numeric: tabular-nums; min-width: 2.5ch; font-weight: 700; }
+}
+
+#play {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: .6rem 1.8rem;
+  border-radius: 999px;
+  border: 0;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  &[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  &:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+}
+
+footer { color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Blues Clock</h1>
+  <p>Hour hand = bar (12 bars) · Minute hand = triplet (12 per bar, beats at 12 · 3 · 6 · 9)</p>
+</header>
+
+<div class="clock" id="clock">
+  <div class="face" aria-hidden="true">
+    <div class="progress"></div>
+    <div class="ticks"></div>
+    <ol class="ring chords"></ol>
+    <ol class="ring numerals"></ol>
+    <div class="hand hour"></div>
+    <div class="hand minute"></div>
+    <div class="hub"></div>
+  </div>
+</div>
+
+<div id="readout">Bar 1 · beat 1 · triplet 1</div>
+
+<form class="controls" onsubmit="return false">
+  <button type="button" id="play" aria-pressed="false">Start</button>
+  <label>Tempo
+    <input type="range" id="tempo" min="40" max="200" value="80">
+    <output id="tempo-out" for="tempo">80</output> bpm
+  </label>
+  <label>Feel
+    <select id="feel">
+      <option value="triplets">All triplets</option>
+      <option value="shuffle">Shuffle (1 · 3)</option>
+      <option value="beats">Beats only</option>
+    </select>
+  </label>
+  <label>Key
+    <select id="key">
+      <option value="4">E</option>
+      <option value="9">A</option>
+      <option value="7">G</option>
+      <option value="0">C</option>
+      <option value="2">D</option>
+      <option value="5">F</option>
+      <option value="10">B♭</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="quick"> Quick change</label>
+</form>
+
+<footer>Space = start / stop</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const clock = $('#clock'), play = $('#play'), tempo = $('#tempo'), tempoOut = $('#tempo-out');
+const feel = $('#feel'), keySel = $('#key'), quick = $('#quick'), readout = $('#readout');
+const numerals = $('.numerals'), chords = $('.chords');
+
+/* ---- build the face ---- */
+for (let i = 0; i < 12; i++) {
+  const n = document.createElement('li');
+  n.style.setProperty('--i', i);
+  n.textContent = i || 12;
+  n.className = ['beat', 'mid', 'last'][i % 3];
+  numerals.append(n);
+
+  const c = document.createElement('li');
+  c.style.setProperty('--i', i + 0.5);   // centre of bar i's 30° sector
+  chords.append(c);
+}
+
+const NOTES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const STEP = { I: 0, IV: 5, V: 7 };
+const form = () => {
+  const f = ['I', 'I', 'I', 'I', 'IV', 'IV', 'I', 'I', 'V', 'IV', 'I', 'V'];
+  if (quick.checked) f[1] = 'IV';
+  return f;
+};
+const chordName = (deg) => NOTES[(+keySel.value + STEP[deg]) % 12] + '7';
+
+function renderChords() {
+  const f = form();
+  [...chords.children].forEach((li, i) => {
+    li.innerHTML = `<b>${chordName(f[i])}</b><small>${f[i]}</small>`;
+  });
+}
+renderChords();
+keySel.addEventListener('change', renderChords);
+quick.addEventListener('change', renderChords);
+
+/* ---- audio: look-ahead scheduler on the AudioContext clock ---- */
+let ctx, master, timer = null, raf = 0;
+let bpm = +tempo.value;
+let anchorTime = 0, anchorTick = 0, nextTick = 0, lastN = -1;
+const tickDur = () => 60 / bpm / 3;                  // one triplet eighth
+const ticksAt = t => anchorTick + (t - anchorTime) / tickDur();
+
+function voice(time, n) {
+  const sub = n % 3, inBar = n % 12, bar = Math.floor(n / 12) % 12;
+  if (feel.value === 'shuffle' && sub === 1) return;
+  if (feel.value === 'beats' && sub !== 0) return;
+
+  let freq, vol;
+  if (inBar === 0) [freq, vol] = bar === 0 ? [2093, 1] : [1568, .8];  // top of form / new bar
+  else if (sub === 0) [freq, vol] = [1047, .5];                       // beat
+  else [freq, vol] = [784, .22];                                      // triplet
+
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(vol, time + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.07);
+  o.connect(g).connect(master);
+  o.start(time);
+  o.stop(time + 0.09);
+}
+
+function schedule() {
+  const now = ctx.currentTime;
+  const horizon = now + (document.hidden ? 1.5 : 0.12);   // background tabs throttle timers
+  for (;;) {
+    const t = anchorTime + (nextTick - anchorTick) * tickDur();
+    if (t > horizon) break;
+    if (t >= now - 0.02) voice(t, nextTick);               // never blast a backlog
+    nextTick++;
+  }
+}
+
+function frame() {
+  if (!timer) return;
+  const t = ctx.currentTime - (ctx.outputLatency || 0);
+  const ticks = ticksAt(t);
+  if (ticks >= 0) {
+    clock.style.setProperty('--pos', ((ticks / 12) % 12).toFixed(4));
+    const n = Math.floor(ticks);
+    if (n !== lastN) { lastN = n; highlight(n); }
+  }
+  raf = requestAnimationFrame(frame);
+}
+
+function highlight(n) {
+  const k = n % 12, bar = Math.floor(n / 12) % 12;
+  numerals.querySelector('.on')?.classList.remove('on');
+  numerals.children[k].classList.add('on');
+  const cOn = chords.querySelector('.on');
+  if (cOn !== chords.children[bar]) {
+    cOn?.classList.remove('on');
+    chords.children[bar].classList.add('on');
+  }
+  const deg = form()[bar];
+  readout.innerHTML =
+    `Bar <b>${bar + 1}</b> · <b>${chordName(deg)}</b> (${deg}) · beat <b>${Math.floor(k / 3) + 1}</b> · triplet <b>${k % 3 + 1}</b>`;
+}
+
+async function start() {
+  ctx ??= new AudioContext({ latencyHint: 'interactive' });
+  await ctx.resume();
+  master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+
+  play.setAttribute('aria-pressed', 'true');   // set first: removes the rewind transition
+  play.textContent = 'Stop';
+  bpm = +tempo.value;
+  anchorTime = ctx.currentTime + 0.08;
+  anchorTick = nextTick = 0;
+  lastN = -1;
+  schedule();
+  timer = setInterval(schedule, 25);
+  raf = requestAnimationFrame(frame);
+}
+
+function stop() {
+  clearInterval(timer);
+  timer = null;
+  cancelAnimationFrame(raf);
+  master?.disconnect();                        // silence anything already queued
+  play.setAttribute('aria-pressed', 'false');
+  play.textContent = 'Start';
+  clock.style.setProperty('--pos', 0);         // transitions back to 12:00
+  numerals.querySelector('.on')?.classList.remove('on');
+  chords.querySelector('.on')?.classList.remove('on');
+  readout.textContent = 'Bar 1 · beat 1 · triplet 1';
+}
+
+const toggle = () => (timer ? stop() : start());
+play.addEventListener('click', toggle);
+
+tempo.addEventListener('input', () => {
+  if (timer) {                                 // re-anchor so the hands don't jump
+    const now = ctx.currentTime;
+    anchorTick = ticksAt(now);
+    anchorTime = now;
+  }
+  bpm = +tempo.value;
+  tempoOut.value = bpm;
+});
+
+addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.target.closest('button, select, input')) {
+    e.preventDefault();
+    toggle();
+  }
+});
+</script>
+</body>
+</html>
