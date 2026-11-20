@@ -147,7 +147,8 @@ header {
 
 /* feel → dim the triplets that are silent */
 body:has(#feel option[value="shuffle"]:checked) .numerals .mid,
-body:has(#feel option[value="beats"]:checked)   .numerals :is(.mid, .last) { opacity: .25; }
+body:has(#feel option[value="beats"]:checked)   .numerals :is(.mid, .last),
+body:has(#feel option[value="one"]:checked)     .numerals li:not(:first-child) { opacity: .25; }
 
 /* hands */
 .hand {
@@ -279,6 +280,7 @@ footer {
       <option value="triplets">All triplets</option>
       <option value="shuffle">Shuffle (1 · 3)</option>
       <option value="beats">Beats only</option>
+      <option value="one">Downbeat only (1)</option>
     </select>
   </label>
   <label>Key
@@ -346,6 +348,7 @@ function voice(time, n) {
   const sub = n % 3, inBar = n % 12, bar = Math.floor(n / 12) % 12;
   if (feel.value === 'shuffle' && sub === 1) return;
   if (feel.value === 'beats' && sub !== 0) return;
+  if (feel.value === 'one' && inBar !== 0) return;
 
   let freq, vol;
   if (inBar === 0) [freq, vol] = bar === 0 ? [2093, 1] : [1568, .8];  // top of form / new bar
