@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light">
 <title>Blues Clock</title>
 <style>
 /* Single source of truth: --pos = position in the 12-bar form, measured in bars (0 → 12).
@@ -11,13 +11,19 @@
 @property --pos { syntax: "<number>"; inherits: true; initial-value: 0; }
 
 :root {
-  color-scheme: light dark;
-  --bg:     light-dark(oklch(96% 0.012 80), oklch(17% 0.01 340));
-  --face:   light-dark(oklch(99% 0.006 80), oklch(22% 0.012 340));
-  --ink:    light-dark(oklch(22% 0.02 340), oklch(93% 0.01 80));
+  /* palette from images/clave_matrix.png: red field, black, white */
+  color-scheme: light;
+  --red:    #bd1c2a;
+  --black:  #070000;
+  --white:  #ffffff;
+  --bg:     var(--red);
+  --face:   var(--white);
+  --ink:    var(--black);
   --muted:  color-mix(in oklch, var(--ink) 45%, transparent);
-  --accent: oklch(55% 0.2 25);
-  --tint:   color-mix(in oklch, var(--accent) 16%, transparent);
+  --accent: var(--red);
+  --tint:   color-mix(in oklch, var(--red) 14%, transparent);
+  --on-bg:  var(--white);
+  --on-bg-muted: color-mix(in oklch, var(--white) 78%, transparent);
   font-family: system-ui, sans-serif;
 }
 
@@ -27,7 +33,7 @@ body {
   margin: 0;
   min-height: 100dvh;
   background: var(--bg);
-  color: var(--ink);
+  color: var(--on-bg);
   display: grid;
   place-content: center;
   justify-items: center;
@@ -38,7 +44,7 @@ body {
 header {
   text-align: center;
   & h1 { margin: 0; font-size: 1.6rem; letter-spacing: .02em; }
-  & p  { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; text-wrap: balance; }
+  & p  { margin: .25rem 0 0; color: var(--on-bg-muted); font-size: .9rem; text-wrap: balance; }
 }
 
 /* ---------- clock ---------- */
@@ -54,8 +60,9 @@ header {
   inset: 0;
   border-radius: 50%;
   background: var(--face);
+  color: var(--ink);
   border: 1.6cqi solid var(--ink);
-  box-shadow: 0 2cqi 6cqi oklch(0% 0 0 / .3);
+  box-shadow: 0 0 0 .8cqi var(--white), 0 2cqi 6cqi oklch(0% 0 0 / .35);
 
   /* current bar = tinted wedge */
   &::before {
@@ -170,8 +177,8 @@ body:not(:has(#play[aria-pressed="true"])) .clock {
   font-variant-numeric: tabular-nums;
   font-size: 1.05rem;
   min-height: 1.4em;
-  color: var(--muted);
-  & b { color: var(--ink); }
+  color: var(--on-bg-muted);
+  & b { color: var(--on-bg); }
 }
 
 .controls {
@@ -183,15 +190,15 @@ body:not(:has(#play[aria-pressed="true"])) .clock {
   max-width: 38rem;
 
   & label { display: flex; align-items: center; gap: .4rem; font-size: .9rem; }
-  & input[type="range"] { accent-color: var(--accent); width: 9rem; }
-  & input[type="checkbox"] { accent-color: var(--accent); }
+  & input[type="range"] { accent-color: var(--black); width: 9rem; }
+  & input[type="checkbox"] { accent-color: var(--black); }
   & select {
     font: inherit;
     padding: .25rem .4rem;
     border-radius: .4rem;
-    border: 1px solid var(--muted);
-    background: var(--face);
-    color: var(--ink);
+    border: 1px solid var(--black);
+    background: var(--white);
+    color: var(--black);
   }
   & output { font-variant-numeric: tabular-nums; min-width: 2.5ch; font-weight: 700; }
 }
@@ -203,14 +210,14 @@ body:not(:has(#play[aria-pressed="true"])) .clock {
   padding: .6rem 1.8rem;
   border-radius: 999px;
   border: 0;
-  background: var(--accent);
-  color: white;
+  background: var(--white);
+  color: var(--red);
   cursor: pointer;
-  &[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-  &:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  &[aria-pressed="true"] { background: var(--black); color: var(--white); }
+  &:focus-visible { outline: 3px solid var(--white); outline-offset: 3px; }
 }
 
-footer { color: var(--muted); font-size: .8rem; }
+footer { color: var(--on-bg-muted); font-size: .8rem; }
 </style>
 </head>
 <body>
